@@ -72,6 +72,12 @@ coverage.xml
 runs/
 wandb/
 
+# Extra cache folders
+agent/__pycache__/
+env/__pycache__/
+tasks/__pycache__/
+grader/__pycache__/
+
 # OS
 .DS_Store
 .AppleDouble
