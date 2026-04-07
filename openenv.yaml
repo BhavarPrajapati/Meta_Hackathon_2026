@@ -1,14 +1,42 @@
 version: "1.0"
-name: "Agentic-Startup-CEO"
-description: "AI Agent manages a startup through hiring, marketing, and funding."
-task_levels:
+name: "ai-startup-ceo-simulator"
+description: "AI agent simulates a startup CEO making strategic decisions under uncertainty."
+
+environment:
+  entry_point: "env.environment:app"
+  framework: "fastapi"
+  port: 7860
+  endpoints:
+    reset: "POST /reset"
+    step: "POST /step"
+    state: "GET /state"
+
+inference:
+  entry_point: "inference.py"
+  runner: "python"
+
+tasks:
   - id: "easy"
-    description: "Launch the product with a $1M budget."
+    description: "Well-funded startup. $1M cash, low burn. Goal: reach $20M valuation."
   - id: "medium"
-    description: "Scale to $50k MRR while handling a market crash."
+    description: "Lean startup. $500k cash, competitive market, mid-game crisis."
   - id: "hard"
-    description: "Reach profitability in an Economic Winter."
-endpoints:
-  reset: "/reset"
-  step: "/step"
-  state: "/state"
+    description: "Underfunded. $200k cash, high burn, recurring market crashes."
+
+agent:
+  type: "rule-based"
+  llm_fallback: true
+  llm_model: "Qwen/Qwen2.5-7B-Instruct"
+  modes:
+    - growth
+    - survival
+    - efficiency
+
+scoring:
+  method: "deterministic"
+  components:
+    survival: 0.30
+    valuation: 0.40
+    growth: 0.20
+    efficiency: 0.10
+  target_valuation: 20000000
