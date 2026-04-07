@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+env/pyvenv.cfg
+agent/__pycache__/
+env/__pycache__/
+tasks/__pycache__/
+grader/__pycache__/
