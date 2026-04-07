@@ -1,0 +1,14 @@
+version: "1.0"
+name: "Agentic-Startup-CEO"
+description: "AI Agent manages a startup through hiring, marketing, and funding."
+task_levels:
+  - id: "easy"
+    description: "Launch the product with a $1M budget."
+  - id: "medium"
+    description: "Scale to $50k MRR while handling a market crash."
+  - id: "hard"
+    description: "Reach profitability in an Economic Winter."
+endpoints:
+  reset: "/reset"
+  step: "/step"
+  state: "/state"
