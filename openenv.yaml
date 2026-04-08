@@ -79,6 +79,9 @@ tasks:
       burn_rate: 40000
       product_progress: 20.0
       product_market_fit: 0.6
+    grader:
+      method: deterministic
+      score_range: [0.001, 0.999]
 
   - id: medium
     description: "Lean startup. $500k cash, competitive market, mid-game crisis at step 10."
@@ -88,6 +91,9 @@ tasks:
       burn_rate: 55000
       product_progress: 10.0
       product_market_fit: 0.5
+    grader:
+      method: deterministic
+      score_range: [0.001, 0.999]
 
   - id: hard
     description: "Underfunded. $200k cash, high burn, 4 market crashes. Survive 20 months."
@@ -97,6 +103,9 @@ tasks:
       burn_rate: 70000
       product_progress: 5.0
       product_market_fit: 0.3
+    grader:
+      method: deterministic
+      score_range: [0.001, 0.999]
 
 agent:
   type: rule-based
@@ -122,6 +131,7 @@ inference:
   env_vars:
     TASK_ID: "all"
     API_BASE_URL: "http://localhost:7860"
+    ENV_BASE_URL: "http://localhost:7860"
   platform: huggingface-spaces
   dockerfile: Dockerfile
   port: 7860

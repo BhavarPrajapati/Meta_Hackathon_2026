@@ -92,13 +92,81 @@ async def info():
                         "fundraise", "cut_costs", "improve_product", "do_nothing"],
         },
         "tasks": [
-            {"id": "easy",   "description": "Well-funded startup, low risk, growing market."},
-            {"id": "medium", "description": "Lean startup, competitive market, mid-game crisis."},
-            {"id": "hard",   "description": "Underfunded, high burn, recurring market crashes."},
+            {"id": "easy",   "description": "Well-funded startup, low risk, growing market.",
+             "grader": {"method": "deterministic", "score_range": [0.001, 0.999]}},
+            {"id": "medium", "description": "Lean startup, competitive market, mid-game crisis.",
+             "grader": {"method": "deterministic", "score_range": [0.001, 0.999]}},
+            {"id": "hard",   "description": "Underfunded, high burn, recurring market crashes.",
+             "grader": {"method": "deterministic", "score_range": [0.001, 0.999]}},
         ],
         "max_steps": MAX_STEPS,
         "reward_range": [0.0, 1.0],
     }
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
+
+@app.get("/metadata")
+async def metadata():
+    return {
+        "name": "AI Startup CEO Simulator",
+        "description": "An RL environment where an AI agent acts as a startup CEO, making strategic decisions under real-world constraints — hiring, fundraising, marketing, and cost management — across 20 monthly time steps.",
+        "version": "3.0.0",
+        "author": "Bhavar Prajapati",
+        "tags": ["reinforcement-learning", "business-simulation", "decision-making", "openenv"],
+    }
+
+
+@app.get("/schema")
+async def schema():
+    return {
+        "action": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["hire_engineer", "hire_sales", "marketing_push",
+                             "fundraise", "cut_costs", "improve_product", "do_nothing"],
+                }
+            },
+            "required": ["action"],
+        },
+        "observation": {
+            "type": "object",
+            "properties": {
+                "cash": {"type": "number"},
+                "mrr": {"type": "number"},
+                "burn_rate": {"type": "number"},
+                "runway_months": {"type": "number"},
+                "valuation": {"type": "number"},
+                "product_progress": {"type": "number"},
+                "product_market_fit": {"type": "number"},
+                "customers": {"type": "integer"},
+                "team_engineers": {"type": "integer"},
+                "team_sales": {"type": "integer"},
+                "strategic_mode": {"type": "string"},
+                "step_count": {"type": "integer"},
+                "is_bankrupt": {"type": "boolean"},
+            },
+        },
+        "state": {
+            "type": "object",
+            "description": "Full environment state including observation and metadata",
+            "properties": {
+                "cash": {"type": "number"},
+                "mrr": {"type": "number"},
+                "burn_rate": {"type": "number"},
+                "valuation": {"type": "number"},
+                "step_count": {"type": "integer"},
+                "is_bankrupt": {"type": "boolean"},
+                "task_id": {"type": "string"},
+            },
+        },
+    }
+
 
 
 @app.post("/reset")
