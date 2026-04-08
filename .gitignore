@@ -19,7 +19,6 @@ lib64/
 wheels/
 
 # Virtual environments
-env/
 venv/
 .venv/
 ENV/
