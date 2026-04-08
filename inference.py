@@ -23,20 +23,32 @@ API_URL = API_BASE_URL.rstrip("/")
 TASKS = ["easy", "medium", "hard"]
 
 
-def _post(url: str, payload: dict, retries: int = 5, delay: float = 3.0) -> dict:
+def _wait_for_server(max_wait: int = 60) -> bool:
+    for _ in range(max_wait // 3):
+        try:
+            r = requests.get(f"{API_URL}/info", timeout=5)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+        time.sleep(3)
+    return False
+
+
+def _post(url: str, payload: dict, retries: int = 10, delay: float = 5.0) -> dict:
+    last_err = None
     for attempt in range(retries):
         try:
             resp = requests.post(url, json=payload, timeout=30)
             if resp.status_code == 200:
                 return resp.json()
-            if attempt < retries - 1:
-                time.sleep(delay)
-        except Exception:
-            if attempt < retries - 1:
-                time.sleep(delay)
-    resp = requests.post(url, json=payload, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+            last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        except Exception as e:
+            last_err = str(e)
+        if attempt < retries - 1:
+            time.sleep(delay)
+    print(f"[WARN] _post failed after {retries} attempts: {last_err}")
+    return {}
 
 
 def run_simulation(task_id: str = "easy") -> dict:
@@ -45,46 +57,64 @@ def run_simulation(task_id: str = "easy") -> dict:
     agent = CEOAgent()
     state = _post(f"{API_URL}/reset", {"task": task_id})
 
+    if not state:
+        print(f"[END] Final Valuation: $0")
+        return {"total_score": 0.0, "breakdown": {}, "final_valuation": 0,
+                "final_mrr": 0, "customers": 0, "survived": False,
+                "steps_completed": 0, "task_id": task_id}
+
     done = False
     step = 0
 
     while not done and step < 20:
         step += 1
-        action, thought, explanation = agent.decide(state)
+        try:
+            action, thought, explanation = agent.decide(state)
+        except Exception:
+            action = "do_nothing"
+
         result = _post(f"{API_URL}/step", {"action": action})
+        if not result:
+            break
 
-        print(f"[STEP] Action: {action}, Reward: {result['reward']}, Observation: {result['observation']}")
+        print(f"[STEP] Action: {action}, Reward: {result.get('reward', 0)}, Observation: {result.get('observation', '')}")
 
-        state = result["state"]
-        done = result["done"]
+        state = result.get("state", state)
+        done = result.get("done", False)
 
     score = grade(state, task_id=task_id)
-    print(f"[END] Final Valuation: ${state['valuation']:,.0f}")
+    print(f"[END] Final Valuation: ${state.get('valuation', 0):,.0f}")
     return score
 
 
 def main():
     task_arg = os.getenv("TASK_ID", "easy")
 
+    _wait_for_server(max_wait=60)
+
     if task_arg == "all":
         tasks_to_run = TASKS
     elif task_arg in TASKS:
         tasks_to_run = [task_arg]
     else:
-        print(f"Unknown TASK_ID '{task_arg}'. Use: easy | medium | hard | all")
-        sys.exit(1)
+        tasks_to_run = ["easy"]
 
     results = {}
     for task in tasks_to_run:
-        results[task] = run_simulation(task)
+        try:
+            results[task] = run_simulation(task)
+        except Exception as e:
+            print(f"[WARN] Task {task} failed: {e}")
+            results[task] = {"total_score": 0.0, "final_valuation": 0,
+                             "survived": False, "task_id": task}
 
     if len(results) > 1:
         for task, score in results.items():
-            print(f"[RESULT] {task.upper()} | Score: {score['total_score']:.4f} | "
-                  f"Valuation: ${score['final_valuation']:,.0f} | "
-                  f"Survived: {'YES' if score['survived'] else 'NO'}")
-        avg = sum(r["total_score"] for r in results.values()) / len(results)
-        print(f"[RESULT] AVERAGE SCORE: {avg:.4f}")
+            print(f"[RESULT] {task.upper()} | Score: {score.get('total_score', 0):.4f} | "
+                  f"Valuation: ${score.get('final_valuation', 0):,.0f} | "
+                  f"Survived: {'YES' if score.get('survived') else 'NO'}")
+        scores = [r.get("total_score", 0) for r in results.values()]
+        print(f"[RESULT] AVERAGE SCORE: {sum(scores)/len(scores):.4f}")
 
 
 if __name__ == "__main__":
