@@ -20,7 +20,8 @@ def grade(final_state: dict, task_id: str = "easy") -> dict:
     raw = survival_score + valuation_score + growth_score + efficiency_score
 
     # Score must be strictly between 0 and 1 (not 0.0, not 1.0)
-    total = round(max(0.001, min(0.999, raw)), 4)
+    # Ensure total_score is strictly between 0 and 1 (not 0.0, not 1.0)
+    total = max(0.001, min(0.999, round(raw, 4)))
 
     return {
         "total_score": total,
