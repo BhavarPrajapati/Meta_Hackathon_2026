@@ -1,42 +1,127 @@
-version: "1.0"
-name: "ai-startup-ceo-simulator"
-description: "AI agent simulates a startup CEO making strategic decisions under uncertainty."
+name: ai-startup-ceo-simulator
+version: "3.0.0"
+spec_version: "openenv-0.1"
+description: >
+  An RL environment where an AI agent acts as a startup CEO, making strategic
+  decisions under real-world constraints — hiring, fundraising, marketing, and
+  cost management — across 20 monthly time steps.
+
+author: Bhavar Prajapati
+tags:
+  - reinforcement-learning
+  - business-simulation
+  - decision-making
+  - openenv
+  - meta-hackathon
 
 environment:
   entry_point: "env.environment:app"
-  framework: "fastapi"
+  framework: fastapi
   port: 7860
-  endpoints:
-    reset: "POST /reset"
-    step: "POST /step"
-    state: "GET /state"
+  interface:
+    http:
+      reset: "POST /reset"
+      step:  "POST /step"
+      state: "GET  /state"
+      close: "POST /close"
+      info:  "GET  /info"
+    websocket: "ws://localhost:7860/ws"
 
-inference:
-  entry_point: "inference.py"
-  runner: "python"
+observation_space:
+  type: dict
+  fields:
+    cash:                 { type: float, description: "Cash in bank ($)" }
+    mrr:                  { type: float, description: "Monthly Recurring Revenue ($)" }
+    burn_rate:            { type: float, description: "Monthly cash burn ($)" }
+    runway_months:        { type: float, description: "Months of cash remaining" }
+    valuation:            { type: float, description: "Company valuation ($)" }
+    equity_owned:         { type: float, description: "Founder equity % remaining" }
+    product_progress:     { type: float, description: "Product completion % (0-100)" }
+    product_market_fit:   { type: float, description: "PMF score (0.0-1.0)" }
+    customers:            { type: int,   description: "Number of paying customers" }
+    team_engineers:       { type: int,   description: "Number of engineers" }
+    team_sales:           { type: int,   description: "Number of sales reps" }
+    market_sentiment:     { type: float, description: "Market multiplier (0.3-1.5)" }
+    competition_level:    { type: float, description: "Competition pressure (0.0-1.0)" }
+    strategic_mode:       { type: str,   description: "growth | survival | efficiency" }
+    mrr_trend:            { type: str,   description: "up | down | flat" }
+    monthly_growth_rate:  { type: float, description: "MRR growth rate vs previous month" }
+    step_count:           { type: int,   description: "Current month (0-20)" }
+    is_bankrupt:          { type: bool,  description: "Episode terminated flag" }
+    active_event:         { type: str,   description: "Current market event label or null" }
+
+action_space:
+  type: discrete
+  actions:
+    hire_engineer:   { cost: "+$15k/mo burn",  effect: "+product progress, +PMF" }
+    hire_sales:      { cost: "+$10k/mo burn",  effect: "+customers, +MRR" }
+    marketing_push:  { cost: "-$40k cash",     effect: "+customers spike (needs product > 30%)" }
+    fundraise:       { cost: "-20% equity",    effect: "+$1.5M cash" }
+    cut_costs:       { cost: "-PMF -0.03",     effect: "-20% burn rate" }
+    improve_product: { cost: "-$20k cash",     effect: "+10% product, +PMF +0.05" }
+    do_nothing:      { cost: "none",           effect: "preserve cash" }
+
+reward:
+  range: [0.0, 1.0]
+  components:
+    survival:    { weight: 0.10, description: "Alive bonus per step" }
+    valuation:   { weight: 0.45, description: "Progress toward $20M target" }
+    mrr_growth:  { weight: 0.20, description: "Monthly revenue momentum" }
+    efficiency:  { weight: 0.15, description: "MRR / burn rate coverage" }
+    runway:      { weight: 0.10, description: "Safety buffer bonus/penalty" }
 
 tasks:
-  - id: "easy"
+  - id: easy
     description: "Well-funded startup. $1M cash, low burn. Goal: reach $20M valuation."
-  - id: "medium"
-    description: "Lean startup. $500k cash, competitive market, mid-game crisis."
-  - id: "hard"
-    description: "Underfunded. $200k cash, high burn, recurring market crashes."
+    initial_state:
+      cash: 1000000
+      mrr: 8000
+      burn_rate: 40000
+      product_progress: 20.0
+      product_market_fit: 0.6
+
+  - id: medium
+    description: "Lean startup. $500k cash, competitive market, mid-game crisis at step 10."
+    initial_state:
+      cash: 500000
+      mrr: 5000
+      burn_rate: 55000
+      product_progress: 10.0
+      product_market_fit: 0.5
+
+  - id: hard
+    description: "Underfunded. $200k cash, high burn, 4 market crashes. Survive 20 months."
+    initial_state:
+      cash: 200000
+      mrr: 2000
+      burn_rate: 70000
+      product_progress: 5.0
+      product_market_fit: 0.3
 
 agent:
-  type: "rule-based"
-  llm_fallback: true
-  llm_model: "Qwen/Qwen2.5-7B-Instruct"
-  modes:
+  type: rule-based
+  strategic_modes:
     - growth
     - survival
     - efficiency
+  memory: true
+  explainability: true
 
-scoring:
-  method: "deterministic"
+grader:
+  method: deterministic
   components:
-    survival: 0.30
-    valuation: 0.40
-    growth: 0.20
+    survival:   0.30
+    valuation:  0.40
+    growth:     0.20
     efficiency: 0.10
   target_valuation: 20000000
+
+inference:
+  entry_point: "inference.py"
+  runner: python
+  env_vars:
+    TASK_ID: "all"
+    API_BASE_URL: "http://localhost:7860"
+  platform: huggingface-spaces
+  dockerfile: Dockerfile
+  port: 7860

@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+from typing import Dict
+import json
 
 from .state import CompanyState
 from .actions import process_action
@@ -7,7 +9,9 @@ from .reward import compute_reward
 from .events import apply_events
 
 app = FastAPI(title="AI Startup CEO Simulator", version="3.0.0")
+
 current_state = CompanyState()
+_sessions: Dict[str, CompanyState] = {}
 
 TASK_CONFIGS = {
     "easy": dict(
@@ -32,23 +36,70 @@ MAX_STEPS = 20
 
 class ResetRequest(BaseModel):
     task: str = "easy"
+    session_id: str = "default"
 
 
 class StepRequest(BaseModel):
     action: str
+    session_id: str = "default"
+
+
+class CloseRequest(BaseModel):
+    session_id: str = "default"
+
+
+@app.get("/")
+async def root():
+    return {
+        "name": "AI Startup CEO Simulator",
+        "version": "3.0.0",
+        "spec": "OpenEnv 0.1",
+        "endpoints": ["/reset", "/step", "/state", "/close", "/info", "/ws"],
+        "tasks": list(TASK_CONFIGS.keys()),
+    }
+
+
+@app.get("/info")
+async def info():
+    return {
+        "name": "AI Startup CEO Simulator",
+        "description": "RL environment where an AI agent acts as a startup CEO making strategic decisions.",
+        "version": "3.0.0",
+        "spec_version": "openenv-0.1",
+        "observation_space": {
+            "type": "dict",
+            "fields": ["cash", "mrr", "burn_rate", "runway_months", "valuation",
+                       "product_progress", "product_market_fit", "customers",
+                       "team_engineers", "team_sales", "strategic_mode", "step_count"],
+        },
+        "action_space": {
+            "type": "discrete",
+            "actions": ["hire_engineer", "hire_sales", "marketing_push",
+                        "fundraise", "cut_costs", "improve_product", "do_nothing"],
+        },
+        "tasks": [
+            {"id": "easy",   "description": "Well-funded startup, low risk, growing market."},
+            {"id": "medium", "description": "Lean startup, competitive market, mid-game crisis."},
+            {"id": "hard",   "description": "Underfunded, high burn, recurring market crashes."},
+        ],
+        "max_steps": MAX_STEPS,
+        "reward_range": [0.0, 1.0],
+    }
 
 
 @app.post("/reset")
 async def reset(request: ResetRequest):
     global current_state
     cfg = TASK_CONFIGS.get(request.task, TASK_CONFIGS["easy"])
-    current_state = CompanyState(
+    state = CompanyState(
         task_id=request.task,
         mrr_history=[cfg["mrr"]],
         cash_history=[cfg["cash"]],
         **cfg,
     )
-    return current_state.snapshot()
+    _sessions[request.session_id] = state
+    current_state = state
+    return state.snapshot()
 
 
 @app.get("/state")
@@ -56,76 +107,122 @@ async def get_state():
     return current_state.snapshot()
 
 
+@app.post("/close")
+async def close(request: CloseRequest):
+    if request.session_id in _sessions:
+        del _sessions[request.session_id]
+    return {"status": "closed", "session_id": request.session_id}
+
+
 @app.post("/step")
 async def step(request: StepRequest):
     global current_state
+    state = _sessions.get(request.session_id, current_state)
 
-    if current_state.is_bankrupt:
+    if state.is_bankrupt:
         return {
             "observation": "Episode terminated: company is bankrupt.",
             "reward": 0.0,
             "done": True,
-            "state": current_state.snapshot(),
+            "truncated": False,
+            "state": state.snapshot(),
             "info": {"reason": "bankrupt"},
         }
 
-    prev_mrr = current_state.mrr
-    prev_cash = current_state.cash
+    prev_mrr = state.mrr
+    prev_cash = state.cash
 
-    _update_strategic_mode(current_state)
-    result = process_action(current_state, request.action)
+    _update_strategic_mode(state)
+    result = process_action(state, request.action)
 
-    current_state.action_history.append(result.action)
-    if len(current_state.action_history) > 6:
-        current_state.action_history.pop(0)
+    state.action_history.append(result.action)
+    if len(state.action_history) > 6:
+        state.action_history.pop(0)
 
-    current_state.cash += current_state.mrr
+    state.cash += state.mrr
 
-    organic = int(current_state.team_sales * 1.5 * current_state.product_market_fit * current_state.market_sentiment)
-    current_state.customers += organic
-    current_state.mrr += organic * 400
+    organic = int(state.team_sales * 1.5 * state.product_market_fit * state.market_sentiment)
+    state.customers += organic
+    state.mrr += organic * 400
 
-    event_msg = apply_events(current_state)
+    event_msg = apply_events(state)
 
-    current_state.valuation = (current_state.mrr * 12 * 10) + current_state.cash
+    state.valuation = (state.mrr * 12 * 10) + state.cash
 
-    current_state.mrr_history.append(round(current_state.mrr, 2))
-    current_state.cash_history.append(round(current_state.cash, 2))
-    if len(current_state.mrr_history) > 6:
-        current_state.mrr_history.pop(0)
-    if len(current_state.cash_history) > 6:
-        current_state.cash_history.pop(0)
+    state.mrr_history.append(round(state.mrr, 2))
+    state.cash_history.append(round(state.cash, 2))
+    if len(state.mrr_history) > 6:
+        state.mrr_history.pop(0)
+    if len(state.cash_history) > 6:
+        state.cash_history.pop(0)
 
-    if current_state.cash <= 0:
-        current_state.is_bankrupt = True
-        current_state.cash = 0.0
+    if state.cash <= 0:
+        state.is_bankrupt = True
+        state.cash = 0.0
 
-    current_state.step_count += 1
+    state.step_count += 1
 
-    reward = compute_reward(current_state, prev_mrr, prev_cash)
-    done = current_state.is_bankrupt or current_state.step_count >= MAX_STEPS
+    reward = compute_reward(state, prev_mrr, prev_cash)
+    done = state.is_bankrupt or state.step_count >= MAX_STEPS
+    truncated = state.step_count >= MAX_STEPS and not state.is_bankrupt
 
     observation = result.message
     if event_msg:
         observation += f" | EVENT: {event_msg}"
 
+    if request.session_id in _sessions:
+        _sessions[request.session_id] = state
+    current_state = state
+
     return {
         "observation": observation,
         "reward": reward,
         "done": done,
-        "state": current_state.snapshot(),
+        "truncated": truncated,
+        "state": state.snapshot(),
         "info": {
             "action": result.action,
             "reason": result.reason,
             "impact": result.impact,
             "tradeoff": result.tradeoff,
             "action_success": result.success,
-            "strategic_mode": current_state.strategic_mode,
-            "step": current_state.step_count,
-            "runway_months": current_state.runway_months,
+            "strategic_mode": state.strategic_mode,
+            "step": state.step_count,
+            "runway_months": state.runway_months,
             "event": event_msg,
         },
     }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    session_id = f"ws_{id(websocket)}"
+    try:
+        while True:
+            data = await websocket.receive_text()
+            msg = json.loads(data)
+            action_type = msg.get("type", "step")
+
+            if action_type == "reset":
+                req = ResetRequest(task=msg.get("task", "easy"), session_id=session_id)
+                result = await reset(req)
+                await websocket.send_text(json.dumps({"type": "reset", "data": result}))
+
+            elif action_type == "step":
+                req = StepRequest(action=msg.get("action", "do_nothing"), session_id=session_id)
+                result = await step(req)
+                await websocket.send_text(json.dumps({"type": "step", "data": result}))
+
+            elif action_type == "close":
+                req = CloseRequest(session_id=session_id)
+                await close(req)
+                await websocket.send_text(json.dumps({"type": "closed"}))
+                break
+
+    except WebSocketDisconnect:
+        if session_id in _sessions:
+            del _sessions[session_id]
 
 
 def _update_strategic_mode(state: CompanyState):

@@ -14,7 +14,7 @@ def run_simulation(task_id: str = "easy") -> dict:
     print(f"  [START] Task: {task_id.upper()}  |  AI Startup CEO Simulator v3.0")
     print(f"{'═' * 70}")
 
-    agent = CEOAgent(use_llm=True)
+    agent = CEOAgent()
 
     resp = requests.post(f"{API_URL}/reset", json={"task": task_id}, timeout=10)
     resp.raise_for_status()
