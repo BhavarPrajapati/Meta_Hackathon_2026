@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import requests
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -18,49 +19,46 @@ client = OpenAI(
     base_url="https://router.huggingface.co/v1/",
 )
 
-API_URL = API_BASE_URL
+API_URL = API_BASE_URL.rstrip("/")
 TASKS = ["easy", "medium", "hard"]
-SEP = "─" * 70
+
+
+def _post(url: str, payload: dict, retries: int = 5, delay: float = 3.0) -> dict:
+    for attempt in range(retries):
+        try:
+            resp = requests.post(url, json=payload, timeout=30)
+            if resp.status_code == 200:
+                return resp.json()
+            if attempt < retries - 1:
+                time.sleep(delay)
+        except Exception:
+            if attempt < retries - 1:
+                time.sleep(delay)
+    resp = requests.post(url, json=payload, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def run_simulation(task_id: str = "easy") -> dict:
     print(f"[START] Task: {task_id}")
 
     agent = CEOAgent()
-
-    resp = requests.post(f"{API_URL}/reset", json={"task": task_id}, timeout=10)
-    resp.raise_for_status()
-    state = resp.json()
+    state = _post(f"{API_URL}/reset", {"task": task_id})
 
     done = False
     step = 0
-    step_log = []
 
     while not done and step < 20:
         step += 1
         action, thought, explanation = agent.decide(state)
-
-        step_resp = requests.post(f"{API_URL}/step", json={"action": action}, timeout=10)
-        step_resp.raise_for_status()
-        result = step_resp.json()
-        info = result.get("info", {})
+        result = _post(f"{API_URL}/step", {"action": action})
 
         print(f"[STEP] Action: {action}, Reward: {result['reward']}, Observation: {result['observation']}")
-
-        step_log.append({
-            "step": step,
-            "action": action,
-            "mode": state.get("strategic_mode", "growth"),
-            "reward": result["reward"],
-            "mrr": result["state"]["mrr"],
-            "event": info.get("event"),
-        })
 
         state = result["state"]
         done = result["done"]
 
     score = grade(state, task_id=task_id)
-
     print(f"[END] Final Valuation: ${state['valuation']:,.0f}")
     return score
 
