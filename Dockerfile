@@ -9,7 +9,7 @@ COPY . .
 
 ENV PYTHONPATH=/app
 ENV API_BASE_URL=http://localhost:7860
-ENV TASK_ID=all
+ENV TASK_ID=easy
 
 EXPOSE 7860
 

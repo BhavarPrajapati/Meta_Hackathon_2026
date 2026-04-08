@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VentureOS — AI Startup Decision Engine</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #3b82f6;
+    --accent2: #8b5cf6;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --card: #141e2e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+
+  .header {
+    background: linear-gradient(135deg, #060b18 0%, #0d1433 30%, #130d2e 60%, #060b18 100%);
+    border-bottom: 1px solid #ffffff0d;
+    padding: 0 32px;
+    height: 68px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative; overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 100% at 30% 50%, #3b82f615 0%, transparent 70%),
+                radial-gradient(ellipse 40% 100% at 70% 50%, #8b5cf610 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, #3b82f640, #8b5cf640, #3b82f640, transparent);
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; }
+  .logo-wrap {
+    position: relative; width: 44px; height: 44px;
+  }
+  .logo-wrap::before {
+    content: '';
+    position: absolute; inset: -2px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6, #06b6d4);
+    border-radius: 13px;
+    animation: rotateBorder 4s linear infinite;
+  }
+  .logo {
+    position: relative; z-index: 1;
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, #0f1729, #1a1040);
+    border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  @keyframes rotateBorder {
+    0% { background: linear-gradient(0deg, #3b82f6, #8b5cf6, #06b6d4); }
+    33% { background: linear-gradient(120deg, #8b5cf6, #06b6d4, #3b82f6); }
+    66% { background: linear-gradient(240deg, #06b6d4, #3b82f6, #8b5cf6); }
+    100% { background: linear-gradient(360deg, #3b82f6, #8b5cf6, #06b6d4); }
+  }
+  .header-title-group { display: flex; flex-direction: column; gap: 3px; }
+  .header-brand {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .header h1 {
+    font-size: 19px; font-weight: 800; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #e2e8f0 0%, #a5b4fc 50%, #67e8f9 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-tagline {
+    font-size: 11px; color: #475569; letter-spacing: 0.3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .header-tagline .dot { width: 3px; height: 3px; border-radius: 50%; background: #334155; }
+  .header-right { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+  .badge {
+    background: linear-gradient(135deg, #1d4ed820, #7c3aed20);
+    border: 1px solid #3b82f630;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+    color: #93c5fd;
+  }
+  .badge-meta {
+    display: flex; align-items: center; gap: 6px;
+    background: #ffffff06; border: 1px solid #ffffff0d;
+    padding: 5px 12px; border-radius: 20px;
+    font-size: 11px; color: #475569;
+  }
+  .badge-meta img { width: 14px; height: 14px; border-radius: 2px; opacity: 0.7; }
+
+  .main { display: grid; grid-template-columns: 320px 1fr; gap: 0; height: calc(100vh - 68px); }
+
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 20px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  .section-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+
+  .task-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .task-btn {
+    padding: 10px 6px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); cursor: pointer;
+    font-size: 12px; font-weight: 600; text-align: center; transition: all 0.2s;
+  }
+  .task-btn:hover { border-color: var(--accent); background: #1a2a4a; }
+  .task-btn.active { border-color: var(--accent); background: linear-gradient(135deg, #1d4ed820, #7c3aed20); color: var(--accent); }
+  .task-btn .task-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .task-btn .task-diff { font-size: 10px; color: var(--muted); font-weight: 400; }
+
+  .run-btn {
+    width: 100%; padding: 14px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: all 0.2s; letter-spacing: 0.3px;
+  }
+  .run-btn:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 25px #3b82f640; }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .metric {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+  }
+  .metric-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .metric-value { font-size: 18px; font-weight: 700; }
+  .metric-value.green { color: var(--green); }
+  .metric-value.blue { color: var(--accent); }
+  .metric-value.yellow { color: var(--yellow); }
+  .metric-value.purple { color: var(--accent2); }
+
+  .mode-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .mode-growth { background: #10b98120; color: var(--green); border: 1px solid #10b98140; }
+  .mode-survival { background: #ef444420; color: var(--red); border: 1px solid #ef444440; }
+  .mode-efficiency { background: #f59e0b20; color: var(--yellow); border: 1px solid #f59e0b40; }
+
+  .progress-bar { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 6px; }
+  .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+  .score-display {
+    background: linear-gradient(135deg, #1d4ed815, #7c3aed15);
+    border: 1px solid #3b82f630;
+    border-radius: 12px; padding: 16px; text-align: center;
+  }
+  .score-number { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .score-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .content { display: flex; flex-direction: column; overflow: hidden; }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tab { padding: 14px 24px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { flex: 1; overflow-y: auto; padding: 24px; display: none; }
+  .tab-content.active { display: block; }
+
+  .step-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  .step-card:hover { border-color: var(--accent); }
+  .step-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .step-month { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .step-reward { font-size: 13px; font-weight: 700; color: var(--green); }
+  .step-action {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .step-thought { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; padding: 8px 10px; background: var(--surface2); border-radius: 6px; border-left: 3px solid var(--accent2); }
+  .step-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .step-meta-item { font-size: 11px; color: var(--muted); }
+  .step-meta-item span { color: var(--text); font-weight: 600; }
+  .event-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-top: 8px; }
+  .event-crash { background: #ef444420; color: var(--red); border: 1px solid #ef444440; }
+  .event-good { background: #10b98120; color: var(--green); border: 1px solid #10b98140; }
+  .event-neutral { background: #f59e0b20; color: var(--yellow); border: 1px solid #f59e0b40; }
+
+  .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  .chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; }
+  .chart-bar { flex: 1; border-radius: 4px 4px 0 0; transition: height 0.5s ease; min-width: 8px; position: relative; cursor: pointer; }
+  .chart-bar:hover::after { content: attr(data-val); position: absolute; top: -22px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 10px; white-space: nowrap; }
+
+  .final-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .final-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .final-card h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .score-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .score-row:last-child { border-bottom: none; }
+  .score-row-label { font-size: 13px; color: var(--muted); }
+  .score-row-val { font-size: 13px; font-weight: 700; color: var(--text); }
+
+  .log-line { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #ffffff08; color: var(--muted); }
+  .log-line.step { color: var(--text); }
+  .log-line.start { color: var(--accent); font-weight: 700; }
+  .log-line.end { color: var(--green); font-weight: 700; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-running { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
+  .status-idle { background: var(--muted); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .valuation-big { font-size: 28px; font-weight: 800; color: var(--text); }
+  .valuation-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo-wrap">
+      <div class="logo">⚡</div>
+    </div>
+    <div class="header-title-group">
+      <div class="header-brand">
+        <h1>VentureOS</h1>
+      </div>
+      <div class="header-tagline">
+        <span>AI Startup Decision Engine</span>
+        <span class="dot"></span>
+        <span>OpenEnv 0.1</span>
+        <span class="dot"></span>
+        <span>Meta × HuggingFace × PyTorch</span>
+      </div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="badge-meta">
+      <span id="statusDot" class="status-dot status-idle"></span>
+      <span id="statusText">Idle</span>
+    </div>
+    <div class="badge">OpenEnv 0.1</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div>
+      <div class="section-title">Select Task</div>
+      <div class="task-grid">
+        <button class="task-btn active" onclick="selectTask('easy',this)">
+          <span class="task-icon">🟢</span>Easy
+          <div class="task-diff">$1M cash</div>
+        </button>
+        <button class="task-btn" onclick="selectTask('medium',this)">
+          <span class="task-icon">🟡</span>Medium
+          <div class="task-diff">$500k cash</div>
+        </button>
+        <button class="task-btn" onclick="selectTask('hard',this)">
+          <span class="task-icon">🔴</span>Hard
+          <div class="task-diff">$200k cash</div>
+        </button>
+      </div>
+    </div>
+
+    <button class="run-btn" id="runBtn" onclick="runSimulation()">▶ Run Simulation</button>
+
+    <div>
+      <div class="section-title">Strategic Mode</div>
+      <div id="modeDisplay" style="margin-bottom:4px;">
+        <span class="mode-badge mode-growth">📈 GROWTH</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Live Metrics</div>
+      <div class="metric-grid">
+        <div class="metric">
+          <div class="metric-label">Valuation</div>
+          <div class="metric-value blue" id="mValuation">$2.0M</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">MRR</div>
+          <div class="metric-value green" id="mMrr">$8,000</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Cash</div>
+          <div class="metric-value yellow" id="mCash">$1.0M</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Runway</div>
+          <div class="metric-value purple" id="mRunway">31.2mo</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Customers</div>
+          <div class="metric-value" id="mCustomers">10</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Burn/mo</div>
+          <div class="metric-value" id="mBurn">$40k</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Product Progress</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span id="productLabel">20%</span>
+        <span style="color:var(--muted)">PMF: <span id="pmfLabel">0.60</span></span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="productBar" style="width:20%"></div></div>
+    </div>
+
+    <div>
+      <div class="section-title">Score</div>
+      <div class="score-display">
+        <div class="score-number" id="scoreDisplay">—</div>
+        <div class="score-label">/ 1.00 Total Score</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Month Progress</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span id="stepLabel">0 / 20</span>
+        <span style="color:var(--muted)" id="stepPct">0%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="stepBar" style="width:0%;background:linear-gradient(90deg,var(--green),var(--accent))"></div></div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('simulation',this)">📊 Simulation</div>
+      <div class="tab" onclick="switchTab('charts',this)">📈 Charts</div>
+      <div class="tab" onclick="switchTab('report',this)">🏆 Final Report</div>
+      <div class="tab" onclick="switchTab('logs',this)">🖥 Raw Logs</div>
+    </div>
+
+    <div id="tab-simulation" class="tab-content active">
+      <div id="stepsContainer">
+        <div class="empty-state">
+          <div class="icon">🤖</div>
+          <h3>Ready to Simulate</h3>
+          <p>Select a task and click Run Simulation to watch the AI CEO make decisions in real-time.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-charts" class="tab-content">
+      <div class="chart-container">
+        <div class="chart-title">📈 Valuation Over Time ($M)</div>
+        <div class="chart-bars" id="valuationChart"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="chart-container">
+          <div class="chart-title">💰 MRR Growth ($k)</div>
+          <div class="chart-bars" id="mrrChart"></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">⭐ Reward Per Step</div>
+          <div class="chart-bars" id="rewardChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-report" class="tab-content">
+      <div id="reportContainer">
+        <div class="empty-state">
+          <div class="icon">🏆</div>
+          <h3>No Report Yet</h3>
+          <p>Run a simulation to see the final report.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-logs" class="tab-content">
+      <div id="logsContainer" style="font-family:monospace;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedTask = 'easy';
+let simData = { steps: [], valuations: [], mrrs: [], rewards: [] };
+
+function selectTask(task, btn) {
+  selectedTask = task;
+  document.querySelectorAll('.task-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+function fmt(n) {
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(0) + 'k';
+  return '$' + n.toFixed(0);
+}
+
+function updateMetrics(state) {
+  document.getElementById('mValuation').textContent = fmt(state.valuation);
+  document.getElementById('mMrr').textContent = fmt(state.mrr);
+  document.getElementById('mCash').textContent = fmt(state.cash);
+  document.getElementById('mRunway').textContent = state.runway_months.toFixed(1) + 'mo';
+  document.getElementById('mCustomers').textContent = state.customers;
+  document.getElementById('mBurn').textContent = fmt(state.burn_rate);
+  document.getElementById('productLabel').textContent = state.product_progress.toFixed(0) + '%';
+  document.getElementById('pmfLabel').textContent = state.product_market_fit.toFixed(2);
+  document.getElementById('productBar').style.width = Math.min(100, state.product_progress) + '%';
+
+  const mode = state.strategic_mode || 'growth';
+  const modeEl = document.getElementById('modeDisplay');
+  const icons = { growth: '📈', survival: '🛡️', efficiency: '⚡' };
+  modeEl.innerHTML = `<span class="mode-badge mode-${mode}">${icons[mode]} ${mode.toUpperCase()}</span>`;
+}
+
+function updateStep(step, total) {
+  document.getElementById('stepLabel').textContent = step + ' / ' + total;
+  const pct = Math.round(step / total * 100);
+  document.getElementById('stepPct').textContent = pct + '%';
+  document.getElementById('stepBar').style.width = pct + '%';
+}
+
+function getEventClass(event) {
+  if (!event) return '';
+  if (event.includes('CRASH') || event.includes('SURGE')) return 'event-crash';
+  if (event.includes('VIRAL') || event.includes('BOOM')) return 'event-good';
+  return 'event-neutral';
+}
+
+function getActionIcon(action) {
+  const icons = {
+    hire_engineer: '👨‍💻', hire_sales: '💼', marketing_push: '📣',
+    fundraise: '💰', cut_costs: '✂️', improve_product: '🔧', do_nothing: '⏸️'
+  };
+  return icons[action] || '⚡';
+}
+
+function addStepCard(stepNum, action, thought, info, result) {
+  const container = document.getElementById('stepsContainer');
+  const event = info.event;
+  const eventHtml = event ? `<div class="event-badge ${getEventClass(event)}">⚡ ${event.split(':')[0]}</div>` : '';
+
+  const card = document.createElement('div');
+  card.className = 'step-card';
+  card.innerHTML = `
+    <div class="step-header">
+      <span class="step-month">Month ${String(stepNum).padStart(2,'0')} · ${(info.strategic_mode||'growth').toUpperCase()}</span>
+      <span class="step-reward">Reward: ${result.reward.toFixed(4)}</span>
+    </div>
+    <div class="step-action">${getActionIcon(action)} ${action.replace(/_/g,' ')}</div>
+    <div class="step-thought">${thought}</div>
+    <div class="step-meta">
+      <div class="step-meta-item">Reason: <span>${info.reason||''}</span></div>
+      <div class="step-meta-item">Impact: <span>${info.impact||''}</span></div>
+      <div class="step-meta-item">Cash: <span>${fmt(result.state.cash)}</span></div>
+      <div class="step-meta-item">Valuation: <span>${fmt(result.state.valuation)}</span></div>
+    </div>
+    ${eventHtml}
+  `;
+  container.appendChild(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function renderCharts() {
+  renderBar('valuationChart', simData.valuations, '#3b82f6', v => (v/1e6).toFixed(1)+'M');
+  renderBar('mrrChart', simData.mrrs, '#10b981', v => (v/1e3).toFixed(0)+'k');
+  renderBar('rewardChart', simData.rewards, '#8b5cf6', v => v.toFixed(3));
+}
+
+function renderBar(id, data, color, fmt) {
+  const el = document.getElementById(id);
+  if (!data.length) return;
+  const max = Math.max(...data);
+  el.innerHTML = data.map((v, i) => {
+    const h = max > 0 ? Math.max(4, (v / max) * 110) : 4;
+    return `<div class="chart-bar" style="height:${h}px;background:${color};opacity:${0.5 + (i/data.length)*0.5}" data-val="${fmt(v)}"></div>`;
+  }).join('');
+}
+
+function renderReport(state, score, stepLog) {
+  const bd = score.breakdown;
+  const dominant = stepLog.reduce((acc, s) => { acc[s.action] = (acc[s.action]||0)+1; return acc; }, {});
+  const topAction = Object.entries(dominant).sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('reportContainer').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div class="metric" style="padding:20px;text-align:center;">
+        <div class="metric-label">Final Valuation</div>
+        <div class="valuation-big">${fmt(state.valuation)}</div>
+        <div class="valuation-sub">Target: $20M</div>
+      </div>
+      <div class="metric" style="padding:20px;text-align:center;">
+        <div class="metric-label">Final MRR</div>
+        <div class="valuation-big" style="color:var(--green)">${fmt(state.mrr)}</div>
+        <div class="valuation-sub">${state.customers} customers</div>
+      </div>
+      <div class="score-display" style="padding:20px;">
+        <div class="score-number">${score.total_score.toFixed(4)}</div>
+        <div class="score-label">Total Score / 1.00</div>
+        <div style="margin-top:8px;font-size:12px;color:${score.survived?'var(--green)':'var(--red)'}">
+          ${score.survived ? '✅ Survived all 20 months' : '❌ Bankrupt'}
+        </div>
+      </div>
+    </div>
+    <div class="final-grid">
+      <div class="final-card">
+        <h3>Score Breakdown</h3>
+        ${[['Survival','survival','0.30'],['Valuation','valuation','0.40'],['Growth','growth','0.20'],['Efficiency','efficiency','0.10']].map(([l,k,max])=>`
+          <div class="score-row">
+            <span class="score-row-label">${l}</span>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:80px;background:var(--border);border-radius:3px;height:4px;">
+                <div style="width:${(bd[k]/parseFloat(max)*100).toFixed(0)}%;height:100%;background:var(--accent);border-radius:3px;"></div>
+              </div>
+              <span class="score-row-val">${bd[k].toFixed(4)} / ${max}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="final-card">
+        <h3>Strategy Summary</h3>
+        ${Object.entries(dominant).sort((a,b)=>b[1]-a[1]).map(([a,c])=>`
+          <div class="score-row">
+            <span class="score-row-label">${getActionIcon(a)} ${a.replace(/_/g,' ')}</span>
+            <span class="score-row-val">${c}x</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function addLog(text, cls) {
+  const el = document.createElement('div');
+  el.className = 'log-line ' + (cls||'');
+  el.textContent = text;
+  document.getElementById('logsContainer').appendChild(el);
+}
+
+async function runSimulation() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+
+  document.getElementById('stepsContainer').innerHTML = '';
+  document.getElementById('logsContainer').innerHTML = '';
+  document.getElementById('reportContainer').innerHTML = '<div class="empty-state"><div class="icon">⏳</div><h3>Simulation Running...</h3></div>';
+  simData = { steps: [], valuations: [], mrrs: [], rewards: [] };
+
+  document.getElementById('statusDot').className = 'status-dot status-running';
+  document.getElementById('statusText').textContent = 'Running';
+  document.getElementById('scoreDisplay').textContent = '—';
+
+  const base = window.location.origin;
+  addLog(`[START] Task: ${selectedTask.toUpperCase()}  |  AI Startup CEO Simulator v3.0`, 'start');
+
+  try {
+    const resetResp = await fetch(`${base}/reset`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ task: selectedTask })
+    });
+    let state = await resetResp.json();
+    updateMetrics(state);
+
+    let done = false, step = 0;
+    const stepLog = [];
+
+    while (!done && step < 20) {
+      step++;
+      const { action, thought } = agentDecide(state);
+
+      const stepResp = await fetch(`${base}/step`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ action })
+      });
+      const result = await stepResp.json();
+      const info = result.info || {};
+
+      updateMetrics(result.state);
+      updateStep(step, 20);
+      addStepCard(step, action, thought, info, result);
+
+      simData.valuations.push(result.state.valuation);
+      simData.mrrs.push(result.state.mrr);
+      simData.rewards.push(result.reward);
+      stepLog.push({ action, mode: state.strategic_mode });
+
+      addLog(`[STEP] Action: ${action}, Reward: ${result.reward}, Observation: ${result.observation}`, 'step');
+
+      state = result.state;
+      done = result.done;
+
+      await new Promise(r => setTimeout(r, 120));
+    }
+
+    renderCharts();
+
+    const gradeResp = await fetch(`${base}/grade`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ state, task_id: selectedTask })
+    });
+    const score = await gradeResp.json();
+    document.getElementById('scoreDisplay').textContent = score.total_score.toFixed(4);
+    renderReport(state, score, stepLog);
+    addLog(`[END] Final Valuation: $${state.valuation.toLocaleString()}`, 'end');
+
+  } catch(e) {
+    addLog('[ERROR] ' + e.message, 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '▶ Run Simulation';
+  document.getElementById('statusDot').className = 'status-dot status-idle';
+  document.getElementById('statusText').textContent = 'Complete';
+}
+
+function agentDecide(state) {
+  const { cash, mrr, burn_rate: burn, runway_months: runway, product_progress: product,
+          product_market_fit: pmf, step_count: step, mrr_trend: trend,
+          active_event: event, action_history: recent = [], strategic_mode: mode } = state;
+
+  let action = 'do_nothing';
+
+  if (mode === 'survival') {
+    action = runway < 1.5 ? 'fundraise' : burn > mrr * 3 ? 'cut_costs' : 'do_nothing';
+  } else if (mode === 'efficiency') {
+    action = burn > mrr * 4 ? 'cut_costs' : product < 70 ? 'hire_engineer' : 'hire_sales';
+  } else {
+    if (runway < 2) action = 'fundraise';
+    else if (event && (event.includes('CRASH') || event.includes('SURGE'))) {
+      action = runway < 5 ? 'fundraise' : burn > mrr * 2.5 ? 'cut_costs' : product < 60 ? 'hire_engineer' : 'hire_sales';
+    } else if (product < 40) action = pmf < 0.35 && cash > 20000 ? 'improve_product' : 'hire_engineer';
+    else if (product < 60) action = pmf < 0.45 && cash > 20000 ? 'improve_product' : 'hire_engineer';
+    else if (product >= 60 && pmf >= 0.55 && cash > 50000 && mrr < 30000 && step > 3) action = 'marketing_push';
+    else if (mrr < burn * 0.8) action = 'hire_sales';
+    else if (runway < 4 && cash < 250000) action = 'fundraise';
+    else if (mrr < 60000 && pmf >= 0.5) action = 'hire_sales';
+    else if (trend === 'up' && mrr < 100000) action = 'hire_sales';
+    else action = 'do_nothing';
+  }
+
+  const thoughts = {
+    hire_engineer: `Product at ${product.toFixed(0)}% — engineering is the bottleneck. Building toward launch.`,
+    hire_sales: `Product ready (PMF=${pmf.toFixed(2)}). Sales team converts demand into revenue.`,
+    marketing_push: `PMF=${pmf.toFixed(2)} is strong. One-time spend for customer acquisition spike.`,
+    fundraise: `Runway at ${runway.toFixed(1)}mo — extending cash to survive and grow.`,
+    cut_costs: `Burn ($${(burn/1000).toFixed(0)}k) too high vs MRR ($${(mrr/1000).toFixed(0)}k). Cutting to extend runway.`,
+    improve_product: `PMF=${pmf.toFixed(2)} is the bottleneck. Product investment unlocks conversion.`,
+    do_nothing: `No urgent action in ${mode} mode. Preserving capital.`,
+  };
+
+  return { action, thought: thoughts[action] || '' };
+}
+</script>
+</body>
+</html>

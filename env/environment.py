@@ -1,7 +1,14 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Dict
 import json
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from grader.grader import grade as compute_grade
 
 from .state import CompanyState
 from .actions import process_action
@@ -9,6 +16,10 @@ from .reward import compute_reward
 from .events import apply_events
 
 app = FastAPI(title="AI Startup CEO Simulator", version="3.0.0")
+
+_static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+if os.path.exists(_static_dir):
+    app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 current_state = CompanyState()
 _sessions: Dict[str, CompanyState] = {}
@@ -50,6 +61,9 @@ class CloseRequest(BaseModel):
 
 @app.get("/")
 async def root():
+    index = os.path.join(_static_dir, "index.html")
+    if os.path.exists(index):
+        return FileResponse(index)
     return {
         "name": "AI Startup CEO Simulator",
         "version": "3.0.0",
@@ -112,6 +126,16 @@ async def close(request: CloseRequest):
     if request.session_id in _sessions:
         del _sessions[request.session_id]
     return {"status": "closed", "session_id": request.session_id}
+
+
+class GradeRequest(BaseModel):
+    state: dict
+    task_id: str = "easy"
+
+
+@app.post("/grade")
+async def grade_episode(request: GradeRequest):
+    return compute_grade(request.state, task_id=request.task_id)
 
 
 @app.post("/step")
