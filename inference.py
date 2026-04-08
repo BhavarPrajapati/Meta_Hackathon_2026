@@ -8,8 +8,8 @@ from grader.grader import grade
 
 load_dotenv()
 
-API_BASE_URL     = os.getenv("API_BASE_URL", "<your-api-base-url>")
-MODEL_NAME       = os.getenv("MODEL_NAME", "<your-active-model>")
+API_BASE_URL     = os.getenv("API_BASE_URL", "https://bhavar8094-ai-ceo-simulator.hf.space")
+MODEL_NAME       = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 HF_TOKEN         = os.getenv("HF_TOKEN")
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
