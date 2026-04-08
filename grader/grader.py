@@ -12,12 +12,15 @@ def grade(final_state: dict, task_id: str = "easy") -> dict:
 
     initial_mrr = {"easy": 8_000.0, "medium": 5_000.0, "hard": 2_000.0}.get(task_id, 5_000.0)
 
-    survival_score = 0.0 if is_bankrupt else min(1.0, step_count / MAX_STEPS) * 0.30
-    valuation_score = min(1.0, valuation / VALUATION_TARGET) * 0.40
-    growth_score = min(1.0, (mrr / initial_mrr - 1.0) / 9.0) * 0.20 if initial_mrr > 0 else 0.0
-    efficiency_score = min(1.0, mrr / burn_rate) * 0.10 if burn_rate > 0 else 0.10
+    survival_score = 0.0 if is_bankrupt else min(0.99, step_count / MAX_STEPS) * 0.30
+    valuation_score = min(0.99, valuation / VALUATION_TARGET) * 0.40
+    growth_score = min(0.99, max(0.0, (mrr / initial_mrr - 1.0) / 9.0)) * 0.20 if initial_mrr > 0 else 0.01
+    efficiency_score = min(0.99, mrr / burn_rate) * 0.10 if burn_rate > 0 else 0.01
 
-    total = round(survival_score + valuation_score + growth_score + efficiency_score, 4)
+    raw = survival_score + valuation_score + growth_score + efficiency_score
+
+    # Score must be strictly between 0 and 1 (not 0.0, not 1.0)
+    total = round(max(0.001, min(0.999, raw)), 4)
 
     return {
         "total_score": total,

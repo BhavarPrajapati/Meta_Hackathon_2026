@@ -149,7 +149,7 @@ def run_simulation(task_id: str = "easy") -> dict:
 
 
 def main():
-    task_arg = os.getenv("TASK_ID", "easy")
+    task_arg = os.getenv("TASK_ID", "all")
 
     if task_arg == "all":
         tasks_to_run = TASKS
