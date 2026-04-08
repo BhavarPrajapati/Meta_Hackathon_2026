@@ -1,3 +1,14 @@
+---
+title: AI Startup CEO Simulator
+emoji: 🚀
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+license: mit
+short_description: OpenEnv RL environment — AI agent acts as a startup CEO
+---
+
 # AI Autonomous Startup CEO Simulator
 
 > OpenEnv 0.1 compliant RL environment — Meta × Hugging Face × PyTorch Hackathon submission
