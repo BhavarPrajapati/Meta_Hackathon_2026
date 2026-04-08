@@ -102,8 +102,10 @@ async def info():
 
 
 @app.post("/reset")
-async def reset(request: ResetRequest):
+async def reset(request: ResetRequest = None):
     global current_state
+    if request is None:
+        request = ResetRequest()
     cfg = TASK_CONFIGS.get(request.task, TASK_CONFIGS["easy"])
     state = CompanyState(
         task_id=request.task,
