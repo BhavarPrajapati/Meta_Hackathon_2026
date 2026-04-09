@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import time
 import requests
 from dotenv import load_dotenv
@@ -107,26 +106,22 @@ def _post(url: str, payload: dict, retries: int = 10, delay: float = 5.0) -> dic
             resp = requests.post(url, json=payload, timeout=30)
             if resp.status_code == 200:
                 return resp.json()
-            print(f"[WARN] attempt {attempt+1}: HTTP {resp.status_code}", file=sys.stderr)
-        except Exception as e:
-            print(f"[WARN] attempt {attempt+1}: {e}", file=sys.stderr)
+        except Exception:
+            pass
         if attempt < retries - 1:
             time.sleep(delay)
     return {}
 
 
 def _wait_for_server(base: str, max_wait: int = 120):
-    print(f"[INFO] Waiting for server at {base}...", file=sys.stderr)
     for i in range(max_wait // 3):
         try:
             r = requests.get(f"{base}/info", timeout=5)
             if r.status_code == 200:
-                print(f"[INFO] Server is ready.", file=sys.stderr)
                 return True
         except Exception:
             pass
         time.sleep(3)
-    print(f"[WARN] Server not ready after {max_wait}s", file=sys.stderr)
     return False
 
 
@@ -140,19 +135,23 @@ def clamp_score(score: float) -> float:
 
 
 def run_simulation(task_id: str = "easy") -> dict:
-    print(f"\n{'='*60}", file=sys.stderr)
-    print(f"[START] Task: {task_id}", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    # ============================================================
+    # [START] — MUST be printed to stdout with flush=True
+    # Format: [START] task=NAME
+    # ============================================================
+    print(f"[START] task={task_id}", flush=True)
 
     _wait_for_server(ENV_URL)
     state = _post(f"{ENV_URL}/reset", {"task": task_id})
 
     if not state:
-        print(f"[ERROR] Failed to reset environment for task {task_id}", file=sys.stderr)
+        # Even on failure, output the required [END] block
+        score = 0.001
+        print(f"[END] task={task_id} score={score} steps=0", flush=True)
         return {
             "task_id": task_id,
-            "score": 0.001,
-            "total_score": 0.001,
+            "score": score,
+            "total_score": score,
             "final_valuation": 0,
             "final_mrr": 0,
             "customers": 0,
@@ -169,12 +168,15 @@ def run_simulation(task_id: str = "easy") -> dict:
         action = _rule_decide(state)
         result = _post(f"{ENV_URL}/step", {"action": action})
         if not result:
-            print(f"[WARN] Step {step} failed for task {task_id}", file=sys.stderr)
             break
 
         reward = result.get("reward", 0)
-        obs = result.get("observation", "")
-        print(f"  [STEP {step:02d}] Action: {action:20s} | Reward: {reward:.4f} | {obs[:60]}", file=sys.stderr)
+
+        # ============================================================
+        # [STEP] — MUST be printed to stdout with flush=True
+        # Format: [STEP] task=NAME step=N reward=R
+        # ============================================================
+        print(f"[STEP] task={task_id} step={step} reward={reward}", flush=True)
 
         state = result.get("state", state)
         done = result.get("done", False)
@@ -189,10 +191,13 @@ def run_simulation(task_id: str = "easy") -> dict:
     grader_result["total_score"] = clamped_score
     grader_result["score"] = clamped_score
     grader_result["task_id"] = task_id
+    grader_result["steps_completed"] = step
 
-    print(f"\n[END] Task: {task_id} | Score: {clamped_score:.4f} | "
-          f"Valuation: ${state.get('valuation', 0):,.0f} | "
-          f"Survived: {'YES' if grader_result.get('survived') else 'NO'}", file=sys.stderr)
+    # ============================================================
+    # [END] — MUST be printed to stdout with flush=True
+    # Format: [END] task=NAME score=S steps=N
+    # ============================================================
+    print(f"[END] task={task_id} score={clamped_score} steps={step}", flush=True)
 
     return grader_result
 
@@ -213,63 +218,19 @@ def main():
             result = run_simulation(task)
             results[task] = result
         except Exception as e:
-            print(f"[ERROR] Task {task} failed: {e}", file=sys.stderr)
+            # Even on exception, print [START] and [END] so validator sees output
+            score = 0.001
+            print(f"[START] task={task}", flush=True)
+            print(f"[END] task={task} score={score} steps=0", flush=True)
             results[task] = {
                 "task_id": task,
-                "score": 0.001,
-                "total_score": 0.001,
+                "score": score,
+                "total_score": score,
                 "final_valuation": 0,
                 "survived": False,
                 "steps_completed": 0,
                 "breakdown": {},
             }
-
-    # ========================================================
-    # OUTPUT STRUCTURED RESULTS
-    # Phase 2 validator parses stdout for task results
-    # ========================================================
-
-    # Output each task result as a JSON line (for validator parsing)
-    for task_id, result in results.items():
-        score = clamp_score(result.get("total_score", result.get("score", 0.001)))
-        task_output = {
-            "task_id": task_id,
-            "score": score,
-            "total_score": score,
-            "breakdown": result.get("breakdown", {}),
-            "final_valuation": result.get("final_valuation", 0),
-            "final_mrr": result.get("final_mrr", 0),
-            "customers": result.get("customers", 0),
-            "survived": result.get("survived", False),
-            "steps_completed": result.get("steps_completed", 0),
-        }
-        # Print structured JSON for each task result
-        print(json.dumps(task_output))
-
-    # Print summary
-    print(json.dumps({
-        "type": "summary",
-        "num_tasks": len(results),
-        "tasks": list(results.keys()),
-        "scores": {task: clamp_score(r.get("total_score", r.get("score", 0.001))) for task, r in results.items()},
-        "average_score": clamp_score(
-            sum(clamp_score(r.get("total_score", r.get("score", 0.001))) for r in results.values()) / max(len(results), 1)
-        ),
-    }))
-
-    # Also print human-readable summary to stderr
-    print(f"\n{'='*60}", file=sys.stderr)
-    print(f"  AGGREGATE RESULTS", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
-    for task, result in results.items():
-        score = clamp_score(result.get("total_score", result.get("score", 0.001)))
-        print(f"  {task.upper():10s} | Score: {score:.4f} | "
-              f"Valuation: ${result.get('final_valuation', 0):>12,.0f} | "
-              f"Survived: {'YES' if result.get('survived') else 'NO'}", file=sys.stderr)
-    scores = [clamp_score(r.get("total_score", r.get("score", 0.001))) for r in results.values()]
-    print(f"  {'─'*50}", file=sys.stderr)
-    print(f"  AVERAGE SCORE : {sum(scores)/len(scores):.4f}", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
 
 
 if __name__ == "__main__":
